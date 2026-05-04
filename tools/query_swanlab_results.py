@@ -33,6 +33,63 @@ INTERESTING_KEYWORDS = (
     "correct",
 )
 
+KNOWN_METRIC_KEYS = {
+    "project1_2_word2vec": [
+        "project1_2/corpus/token_count",
+        "project1_2/corpus/vocab_size",
+        "project1_2/cbow/train_loss",
+        "project1_2/skipgram/train_loss",
+        "project1_2/eval/cbow/knn/available_queries",
+        "project1_2/eval/cbow/knn/mean_top10_cosine",
+        "project1_2/eval/cbow/simlex999/covered_pairs",
+        "project1_2/eval/cbow/simlex999/spearman",
+        "project1_2/eval/cbow/analogy/covered_questions",
+        "project1_2/eval/cbow/analogy/correct",
+        "project1_2/eval/cbow/analogy/accuracy",
+        "project1_2/eval/skipgram/knn/available_queries",
+        "project1_2/eval/skipgram/knn/mean_top10_cosine",
+        "project1_2/eval/skipgram/simlex999/covered_pairs",
+        "project1_2/eval/skipgram/simlex999/spearman",
+        "project1_2/eval/skipgram/analogy/covered_questions",
+        "project1_2/eval/skipgram/analogy/correct",
+        "project1_2/eval/skipgram/analogy/accuracy",
+    ],
+    "project3_transformer_ab": [
+        "project3/taskA_char/train_loss",
+        "project3/taskA_char/train_accuracy",
+        "project3/taskA_char/dev_loss",
+        "project3/taskA_char/dev_accuracy",
+        "project3/taskA_char/final/test_loss",
+        "project3/taskA_char/final/test_accuracy",
+        "project3/taskA_char/final/test_misclassified",
+        "project3/taskA_char/final/vocab_size",
+        "project3/taskB_word/train_loss",
+        "project3/taskB_word/train_accuracy",
+        "project3/taskB_word/dev_loss",
+        "project3/taskB_word/dev_accuracy",
+        "project3/taskB_word/final/test_loss",
+        "project3/taskB_word/final/test_accuracy",
+        "project3/taskB_word/final/test_misclassified",
+        "project3/taskB_word/final/vocab_size",
+        "project3/comparison/a_wrong_b_right",
+        "project3/comparison/b_wrong_a_right",
+    ],
+    "project4_bert_tasks": [
+        "project4/sst2/final/eval_loss",
+        "project4/sst2/final/final_accuracy",
+        "project4/sst2/final/final_f1",
+        "project4/sst2/final/misclassified",
+        "project4/sst2/final/train_size",
+        "project4/sst2/final/validation_size",
+        "project4/mrpc/final/eval_loss",
+        "project4/mrpc/final/final_accuracy",
+        "project4/mrpc/final/final_f1",
+        "project4/mrpc/final/misclassified",
+        "project4/mrpc/final/train_size",
+        "project4/mrpc/final/validation_size",
+    ],
+}
+
 KEY_PATTERN = re.compile(r"^\s*(?:export\s+)?SWANLAB_API_KEY\s*=\s*['\"]?([^'\"\n#]+)")
 
 
@@ -159,6 +216,31 @@ def compact_metric_value(value: Any) -> Any:
     return value
 
 
+def latest_metric_from_dataframe(df: Any, key: str) -> Dict[str, Any] | None:
+    if df is None or getattr(df, "empty", True) or key not in df.columns:
+        return None
+    series = df[key].dropna()
+    if series.empty:
+        return None
+    step = series.index[-1]
+    return {"value": float(series.iloc[-1]), "step": int(step)}
+
+
+def query_known_metrics(api: Any, exp_id: str, experiment_name: str) -> Dict[str, Any]:
+    metrics: Dict[str, Any] = {}
+    for key in KNOWN_METRIC_KEYS.get(experiment_name, []):
+        try:
+            response = api.get_metrics(exp_id=exp_id, keys=key)
+            if get_field(response, "code") != 200:
+                continue
+            value = latest_metric_from_dataframe(get_field(response, "data"), key)
+            if value is not None:
+                metrics[key] = value
+        except Exception:
+            continue
+    return metrics
+
+
 def query_results(args: argparse.Namespace) -> Dict[str, Any]:
     OpenApi = require_swanlab()
     api_key = load_api_key(args)
@@ -197,11 +279,18 @@ def query_results(args: argparse.Namespace) -> Dict[str, Any]:
     for exp in experiments:
         exp_id = get_field(exp, "cuid")
         exp_dict = as_dict(exp)
-        summary_raw = response_data(api.get_summary(project=args.project, exp_id=exp_id, username=workspace))
+        summary_error = ""
+        try:
+            summary_raw = response_data(api.get_summary(project=args.project, exp_id=exp_id, username=workspace))
+        except Exception as exc:
+            summary_raw = {}
+            summary_error = str(exc)
         summary_selected = {
             key: compact_metric_value(value)
             for key, value in select_metrics(summary_raw or {}, args.all_metrics).items()
         }
+        if not summary_selected:
+            summary_selected = query_known_metrics(api, exp_id, exp_dict.get("name") or "")
         result["experiments"].append(
             {
                 "cuid": exp_id,
@@ -210,6 +299,7 @@ def query_results(args: argparse.Namespace) -> Dict[str, Any]:
                 "createdAt": exp_dict.get("createdAt"),
                 "finishedAt": exp_dict.get("finishedAt"),
                 "summary": summary_selected,
+                "summary_error": summary_error,
             }
         )
 
@@ -252,7 +342,10 @@ def write_outputs(result: Mapping[str, Any], output_dir: Path) -> None:
         )
         summary = exp.get("summary") or {}
         if not summary:
-            lines.append("No selected metrics found.")
+            if exp.get("summary_error"):
+                lines.append(f"Summary query failed: `{exp.get('summary_error')}`")
+            else:
+                lines.append("No selected metrics found.")
         else:
             lines.append("| Metric | Last Value | Step |")
             lines.append("| --- | ---: | ---: |")
@@ -278,6 +371,8 @@ def print_console_summary(result: Mapping[str, Any]) -> None:
     for exp in result.get("experiments", []):
         print(f"\n[{exp.get('state')}] {exp.get('name')} ({exp.get('cuid')})")
         summary = exp.get("summary") or {}
+        if exp.get("summary_error"):
+            print(f"  summary query failed: {exp.get('summary_error')}")
         for key, value in summary.items():
             if isinstance(value, Mapping):
                 print(f"  {key}: {value.get('value')} (step {value.get('step')})")

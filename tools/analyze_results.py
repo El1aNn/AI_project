@@ -31,6 +31,17 @@ def find_metric(summary: Mapping[str, Any], suffixes: Sequence[str]) -> float | 
     return None
 
 
+def metric(summary: Mapping[str, Any], key: str) -> float | None:
+    value = summary.get(key)
+    if isinstance(value, Mapping):
+        value = value.get("value")
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except Exception:
+        return None
+
+
 def quality_line(name: str, value: float | None, good: float, ok: float, higher_better: bool = True) -> str:
     if value is None:
         return f"- {name}: not found."
@@ -115,17 +126,42 @@ def analyze_swanlab(root: Path) -> list[str]:
     lines.append(f"- Queried experiments: `{len(experiments)}`.")
     for exp in experiments[:10]:
         summary = exp.get("summary") or {}
-        acc = find_metric(summary, ["accuracy", "final_accuracy"])
-        f1 = find_metric(summary, ["f1", "final_f1"])
-        loss = find_metric(summary, ["loss"])
-        bits = []
-        if acc is not None:
-            bits.append(f"accuracy={acc:.4f}")
-        if f1 is not None:
-            bits.append(f"f1={f1:.4f}")
-        if loss is not None:
-            bits.append(f"loss={loss:.4f}")
-        lines.append(f"- `{exp.get('name')}` [{exp.get('state')}]: " + (", ".join(bits) if bits else "selected metrics not found"))
+        name = exp.get("name")
+        lines.append(f"### `{name}` [{exp.get('state')}]")
+        if name == "project1_2_word2vec":
+            for model in ["cbow", "skipgram"]:
+                lines.append(quality_line(f"{model} KNN mean top-10 cosine", metric(summary, f"project1_2/eval/{model}/knn/mean_top10_cosine"), 0.45, 0.30))
+                lines.append(quality_line(f"{model} SimLex Spearman", metric(summary, f"project1_2/eval/{model}/simlex999/spearman"), 0.20, 0.10))
+                lines.append(quality_line(f"{model} analogy accuracy", metric(summary, f"project1_2/eval/{model}/analogy/accuracy"), 0.10, 0.03))
+        elif name == "project3_transformer_ab":
+            lines.append(quality_line("Task A character test accuracy", metric(summary, "project3/taskA_char/final/test_accuracy"), 0.80, 0.65))
+            lines.append(quality_line("Task B word test accuracy", metric(summary, "project3/taskB_word/final/test_accuracy"), 0.80, 0.65))
+            a_mis = metric(summary, "project3/taskA_char/final/test_misclassified")
+            b_mis = metric(summary, "project3/taskB_word/final/test_misclassified")
+            if a_mis is not None and b_mis is not None:
+                better = "Task A" if a_mis < b_mis else "Task B"
+                lines.append(f"- Misclassified documents: Task A `{a_mis:.0f}`, Task B `{b_mis:.0f}` -> {better} is better on this run.")
+            awbr = metric(summary, "project3/comparison/a_wrong_b_right")
+            bwar = metric(summary, "project3/comparison/b_wrong_a_right")
+            if awbr is not None and bwar is not None:
+                lines.append(f"- A wrong/B right examples: `{awbr:.0f}`; B wrong/A right examples: `{bwar:.0f}`.")
+        elif name == "project4_bert_tasks":
+            lines.append(quality_line("SST-2 final accuracy", metric(summary, "project4/sst2/final/final_accuracy"), 0.85, 0.75))
+            lines.append(quality_line("SST-2 final F1", metric(summary, "project4/sst2/final/final_f1"), 0.85, 0.75))
+            lines.append(quality_line("MRPC final accuracy", metric(summary, "project4/mrpc/final/final_accuracy"), 0.75, 0.68))
+            lines.append(quality_line("MRPC final F1", metric(summary, "project4/mrpc/final/final_f1"), 0.82, 0.75))
+        else:
+            acc = find_metric(summary, ["accuracy", "final_accuracy"])
+            f1 = find_metric(summary, ["f1", "final_f1"])
+            loss = find_metric(summary, ["loss"])
+            bits = []
+            if acc is not None:
+                bits.append(f"accuracy={acc:.4f}")
+            if f1 is not None:
+                bits.append(f"f1={f1:.4f}")
+            if loss is not None:
+                bits.append(f"loss={loss:.4f}")
+            lines.append("- " + (", ".join(bits) if bits else "selected metrics not found"))
     lines.append("")
     return lines
 
