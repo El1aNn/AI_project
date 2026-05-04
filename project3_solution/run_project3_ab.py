@@ -236,14 +236,16 @@ def evaluate_model(model, loader, config, split: str, output_csv: Path | None = 
                 )
 
     accuracy = metrics.accuracy_score(y_true, y_pred)
+    labels = list(range(len(config.class_list)))
     report = metrics.classification_report(
         y_true,
         y_pred,
+        labels=labels,
         target_names=config.class_list,
         digits=4,
         zero_division=0,
     )
-    confusion = metrics.confusion_matrix(y_true, y_pred).tolist()
+    confusion = metrics.confusion_matrix(y_true, y_pred, labels=labels).tolist()
     if output_csv is not None:
         write_csv(
             output_csv,
