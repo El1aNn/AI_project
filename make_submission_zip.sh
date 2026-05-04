@@ -25,6 +25,6 @@ zip -r "$ZIP_NAME" \
   "NPL Project 4.pdf" \
   Transformer3.pdf \
   "Project 3-theory-run-requirements1.pdf" \
-  -x "*/__pycache__/*" "*.pyc" "*/.DS_Store" "*.ckpt" "*/trainer/*"
+  -x "*/__pycache__/*" "*.pyc" "*/.DS_Store" "*.ckpt" "*/trainer/*" "swanlab_query_outputs/*"
 
 echo "Created $ZIP_NAME"

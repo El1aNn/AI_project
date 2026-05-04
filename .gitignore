@@ -13,6 +13,7 @@ env/
 .nltk_data/
 swanlog/
 swanlab_query_outputs/
+RESULT_ANALYSIS.md
 project1_2_solution/outputs/
 project3_solution/outputs/
 project3_solution/THUCNews_word/

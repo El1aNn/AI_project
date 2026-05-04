@@ -99,6 +99,12 @@ bash start.sh swanlab-results AI_project 10
 
 The query output is saved under `swanlab_query_outputs/`.
 
+Generate a local report-style analysis after querying:
+
+```bash
+bash start.sh analyze
+```
+
 Run quick smoke tests:
 
 ```bash

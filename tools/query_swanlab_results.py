@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
@@ -31,6 +32,52 @@ INTERESTING_KEYWORDS = (
     "covered",
     "correct",
 )
+
+KEY_PATTERN = re.compile(r"^\s*(?:export\s+)?SWANLAB_API_KEY\s*=\s*['\"]?([^'\"\n#]+)")
+
+
+def load_api_key_from_file(path: Path) -> str | None:
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        if path.suffix.lower() == ".json":
+            data = json.loads(path.read_text(encoding="utf-8"))
+            value = data.get("SWANLAB_API_KEY") or data.get("swanlab_api_key") or data.get("api_key")
+            return str(value).strip() if value else None
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            match = KEY_PATTERN.match(line)
+            if match:
+                return match.group(1).strip()
+    except Exception:
+        return None
+    return None
+
+
+def load_api_key(args: argparse.Namespace) -> str | None:
+    if os.environ.get("SWANLAB_API_KEY"):
+        return os.environ["SWANLAB_API_KEY"].strip()
+
+    candidates = []
+    if args.config:
+        candidates.append(Path(args.config).expanduser())
+    if os.environ.get("SWANLAB_CONFIG"):
+        candidates.append(Path(os.environ["SWANLAB_CONFIG"]).expanduser())
+    candidates.extend(
+        [
+            Path(".env"),
+            Path("swanlab.env"),
+            Path("swanlab_config.json"),
+            Path.home() / ".bashrc",
+            Path.home() / ".zshrc",
+            Path.home() / ".config" / "swanlab" / "config.json",
+        ]
+    )
+    for path in candidates:
+        value = load_api_key_from_file(path)
+        if value:
+            print(f"Loaded SWANLAB_API_KEY from {path}")
+            return value
+    return None
 
 
 def require_swanlab():
@@ -114,9 +161,12 @@ def compact_metric_value(value: Any) -> Any:
 
 def query_results(args: argparse.Namespace) -> Dict[str, Any]:
     OpenApi = require_swanlab()
-    api_key = os.environ.get("SWANLAB_API_KEY")
+    api_key = load_api_key(args)
     if not api_key:
-        raise SystemExit("SWANLAB_API_KEY is not set. Run `source ~/.bashrc` first.")
+        raise SystemExit(
+            "SWANLAB_API_KEY was not found in env or known config files. "
+            "Run `source ~/.bashrc`, or pass `--config path/to/config`."
+        )
 
     api = OpenApi(api_key=api_key)
     workspaces = response_data(api.list_workspaces())
@@ -217,6 +267,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", default=os.environ.get("SWANLAB_PROJECT", "AI_project"))
     parser.add_argument("--workspace", default=os.environ.get("SWANLAB_WORKSPACE"))
+    parser.add_argument("--config", default=os.environ.get("SWANLAB_CONFIG"))
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--all-metrics", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=Path("swanlab_query_outputs"))

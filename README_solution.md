@@ -61,6 +61,14 @@ bash start.sh swanlab-results AI_project 10
 This writes `swanlab_query_outputs/swanlab_results.md` and
 `swanlab_query_outputs/swanlab_results.json`.
 
+Then generate a report-style analysis:
+
+```bash
+bash start.sh analyze
+```
+
+This writes `RESULT_ANALYSIS.md`.
+
 ## 1. Projects 1 and 2: CBOW and Skip-gram
 
 Quick smoke test:
