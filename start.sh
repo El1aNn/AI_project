@@ -4,13 +4,21 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
-PYTHON_BIN="${PYTHON_BIN:-python}"
-COMMAND="${1:-help}"
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  else
+    PYTHON_BIN="python"
+  fi
+fi
+
+COMMAND="${1:-default}"
 STUDENT_ID="${2:-${STUDENT_ID:-20260517}}"
 
 print_usage() {
   cat <<'EOF'
 Usage:
+  bash start.sh
   bash start.sh check
   bash start.sh setup
   bash start.sh quick [STUDENT_ID]
@@ -25,6 +33,7 @@ Environment variables:
   STUDENT_ID=123456789   Student ID used for reproducible sampling
 
 Notes:
+  - running without arguments performs an environment check.
   - quick runs small smoke tests only; do not use quick outputs in the report.
   - all runs the final settings and may take a long time.
 EOF
@@ -102,6 +111,22 @@ run_project4() {
 }
 
 case "$COMMAND" in
+  default)
+    echo "No command supplied; running environment check."
+    if check_env; then
+      echo
+      echo "Environment looks ready."
+      echo "Next commands:"
+      echo "  bash start.sh quick $STUDENT_ID"
+      echo "  bash start.sh all $STUDENT_ID"
+    else
+      echo
+      echo "Environment is not ready yet."
+      echo "Run setup first:"
+      echo "  bash start.sh setup"
+      exit 1
+    fi
+    ;;
   help|-h|--help)
     print_usage
     ;;
