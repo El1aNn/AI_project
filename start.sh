@@ -29,6 +29,7 @@ Usage:
   bash start.sh project1 [STUDENT_ID]
   bash start.sh project3 [STUDENT_ID]
   bash start.sh project4
+  bash start.sh swanlab-results [PROJECT] [LIMIT]
   bash start.sh all [STUDENT_ID]
   bash start.sh zip
 
@@ -48,6 +49,7 @@ Notes:
   - running without arguments performs an environment check.
   - setup-cn installs packages through the Tsinghua PyPI mirror.
   - setup/setup-cn also try to download NLTK Reuters, but continue if it times out.
+  - swanlab-results reads SWANLAB_API_KEY and queries recent experiment summaries.
   - quick runs small smoke tests only; do not use quick outputs in the report.
   - all runs the final settings and may take a long time.
 EOF
@@ -245,6 +247,11 @@ case "$COMMAND" in
   project4)
     check_env
     run_project4
+    ;;
+  swanlab-results)
+    "${PYTHON_BIN}" tools/query_swanlab_results.py \
+      --project "${2:-${SWANLAB_PROJECT:-AI_project}}" \
+      --limit "${3:-10}"
     ;;
   all)
     check_env

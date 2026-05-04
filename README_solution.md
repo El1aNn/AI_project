@@ -51,6 +51,16 @@ bash start.sh all YOUR_STUDENT_ID
 Logged items include training loss/accuracy curves, final evaluation metrics,
 misclassification counts, and paths to generated CSV/JSON/Markdown outputs.
 
+After runs finish, query recent SwanLab summaries from AutoDL:
+
+```bash
+source ~/.bashrc
+bash start.sh swanlab-results AI_project 10
+```
+
+This writes `swanlab_query_outputs/swanlab_results.md` and
+`swanlab_query_outputs/swanlab_results.json`.
+
 ## 1. Projects 1 and 2: CBOW and Skip-gram
 
 Quick smoke test:

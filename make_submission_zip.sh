@@ -13,6 +13,7 @@ zip -r "$ZIP_NAME" \
   start.sh \
   make_submission_zip.sh \
   common \
+  tools \
   project1_2_solution \
   project3_solution \
   project4_solution \

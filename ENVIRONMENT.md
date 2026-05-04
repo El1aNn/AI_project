@@ -90,6 +90,15 @@ The scripts log useful scalar metrics and report pointers:
   counts, A-wrong/B-right and B-wrong/A-right counts.
 - Project 4: Trainer logs, final accuracy/F1, validation misclassified counts.
 
+After training finishes, query recent online results with SwanLab OpenAPI:
+
+```bash
+source ~/.bashrc
+bash start.sh swanlab-results AI_project 10
+```
+
+The query output is saved under `swanlab_query_outputs/`.
+
 Run quick smoke tests:
 
 ```bash
