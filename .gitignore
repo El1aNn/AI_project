@@ -1,0 +1,29 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Python / virtual environments
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+
+# Generated project outputs
+project1_2_solution/outputs/
+project3_solution/outputs/
+project3_solution/THUCNews_word/
+project4_solution/outputs/
+
+# Large model/checkpoint artifacts
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.safetensors
+bert-for-sst2/
+bert-for-mrpc/
+no-need-to-care-about-this-folder/
+
+# Generated archives
+nlp_projects_submission.zip
