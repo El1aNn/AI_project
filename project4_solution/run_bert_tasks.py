@@ -22,6 +22,12 @@ from typing import Dict, List, Sequence
 
 import numpy as np
 
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from common.swanlab_helper import SwanLabLogger, add_swanlab_args
+
 
 TASKS = {
     "sst2": {
@@ -206,9 +212,9 @@ def write_csv(path: Path, fieldnames: Sequence[str], rows: Sequence[Dict[str, ob
         writer.writerows(rows)
 
 
-def run_task(task: str, args) -> Dict[str, float]:
+def run_task(task: str, args, swanlab: SwanLabLogger) -> Dict[str, float]:
     import torch
-    from transformers import BertForSequenceClassification, BertTokenizerFast, Trainer
+    from transformers import BertForSequenceClassification, BertTokenizerFast, Trainer, TrainerCallback
 
     output_dir = Path(args.output_dir) / task
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -225,6 +231,11 @@ def run_task(task: str, args) -> Dict[str, float]:
         logits, labels = eval_pred
         return compute_metric_values(task, logits, labels)
 
+    class SwanLabTrainerCallback(TrainerCallback):
+        def on_log(self, training_args, state, control, logs=None, **kwargs):
+            if logs:
+                swanlab.log_metrics(logs, step=int(state.global_step), prefix=f"project4/{task}/trainer")
+
     trainer = Trainer(
         model=model,
         args=build_training_arguments(output_dir / "trainer", args),
@@ -232,6 +243,7 @@ def run_task(task: str, args) -> Dict[str, float]:
         eval_dataset=tokenized["validation"],
         tokenizer=tokenizer,
         compute_metrics=compute_metrics,
+        callbacks=[SwanLabTrainerCallback()] if swanlab.enabled else None,
     )
     trainer.train()
     eval_metrics = trainer.evaluate()
@@ -249,6 +261,18 @@ def run_task(task: str, args) -> Dict[str, float]:
     if "eval_f1" in metrics:
         metrics["final_f1"] = float(metrics["eval_f1"])
     (output_dir / "final_metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    misclassified_count = sum(1 for row in rows if not row["correct"])
+    swanlab.log_metrics(
+        {
+            **metrics,
+            "train_size": len(dataset["train"]),
+            "validation_size": len(dataset["validation"]),
+            "misclassified": misclassified_count,
+        },
+        prefix=f"project4/{task}/final",
+    )
+    swanlab.log_output_path(f"project4/{task}/final_metrics_json", output_dir / "final_metrics.json")
+    swanlab.log_output_path(f"project4/{task}/report_examples", output_dir / "report_examples.md")
 
     print(f"\n{task.upper()} final metrics:")
     for key, value in metrics.items():
@@ -274,6 +298,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-eval-samples", type=int, default=None)
     parser.add_argument("--quick", action="store_true", help="Small smoke-test run; not for final report.")
+    add_swanlab_args(parser)
     args = parser.parse_args(argv)
     if args.quick:
         args.epochs = 1.0
@@ -289,8 +314,29 @@ def main(argv: Sequence[str] | None = None) -> None:
     require_dependencies()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     tasks = ["sst2", "mrpc"] if args.task == "all" else [args.task]
-    summary = {task: run_task(task, args) for task in tasks}
-    (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    swanlab = SwanLabLogger.from_args(
+        args,
+        project=args.swanlab_project,
+        experiment_name=args.swanlab_experiment or "project4_bert_tasks",
+        config={
+            "project": "project4",
+            "tasks": tasks,
+            "model_name": args.model_name,
+            "tokenizer_name": args.tokenizer_name,
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "eval_batch_size": args.eval_batch_size,
+            "learning_rate": args.learning_rate,
+            "quick": args.quick,
+        },
+    )
+    try:
+        summary = {task: run_task(task, args, swanlab) for task in tasks}
+        (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        swanlab.log_metrics(summary, prefix="project4/summary")
+        swanlab.log_output_path("project4/summary_json", args.output_dir / "summary.json")
+    finally:
+        swanlab.finish()
 
 
 if __name__ == "__main__":

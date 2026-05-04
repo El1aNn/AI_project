@@ -10,6 +10,7 @@ packages are missing:
 - `datasets`
 - `evaluate`
 - `accelerate`
+- `swanlab` if you enable metric upload with `SWANLAB=1`
 
 Install dependencies first:
 

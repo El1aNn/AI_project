@@ -6,10 +6,13 @@ ZIP_NAME="${1:-nlp_projects_submission.zip}"
 rm -f "$ZIP_NAME"
 zip -r "$ZIP_NAME" \
   README_solution.md \
+  ENVIRONMENT.md \
   MISSING_ITEMS.md \
   REPORT_TEMPLATE.md \
   requirements.txt \
+  start.sh \
   make_submission_zip.sh \
+  common \
   project1_2_solution \
   project3_solution \
   project4_solution \

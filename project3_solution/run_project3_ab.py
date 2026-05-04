@@ -24,6 +24,12 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 
 import numpy as np
 
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from common.swanlab_helper import SwanLabLogger, add_swanlab_args
+
 
 UNK = "<UNK>"
 PAD = "<PAD>"
@@ -259,7 +265,7 @@ def evaluate_model(model, loader, config, split: str, output_csv: Path | None = 
     }
 
 
-def train_one_task(task: str, args: argparse.Namespace) -> Dict[str, object]:
+def train_one_task(task: str, args: argparse.Namespace, swanlab: SwanLabLogger) -> Dict[str, object]:
     import torch
     import torch.nn.functional as F
     from tqdm import tqdm
@@ -326,6 +332,7 @@ def train_one_task(task: str, args: argparse.Namespace) -> Dict[str, object]:
             "dev_accuracy": dev_metrics["accuracy"],
         }
         history.append(epoch_row)
+        swanlab.log_metrics(epoch_row, step=epoch, prefix=f"project3/{task_name}")
         print(
             f"{task_name} epoch {epoch}: "
             f"train_loss={epoch_row['train_loss']:.4f}, "
@@ -349,6 +356,19 @@ def train_one_task(task: str, args: argparse.Namespace) -> Dict[str, object]:
     (out_dir / "vocab.json").write_text(json.dumps(vocab, indent=2, ensure_ascii=False), encoding="utf-8")
     if args.save_model:
         torch.save(model.state_dict(), out_dir / "Transformer.ckpt")
+    wrong_count = sum(1 for row in read_prediction_csv(test_csv).values() if int(row["correct"]) == 0)
+    swanlab.log_metrics(
+        {
+            "elapsed_seconds": metrics_out["elapsed_seconds"],
+            "vocab_size": len(vocab),
+            "test_loss": test_metrics["loss"],
+            "test_accuracy": test_metrics["accuracy"],
+            "test_misclassified": wrong_count,
+        },
+        prefix=f"project3/{task_name}/final",
+    )
+    swanlab.log_output_path(f"project3/{task_name}/metrics_json", out_dir / "metrics.json")
+    swanlab.log_output_path(f"project3/{task_name}/misclassified_csv", test_csv.with_name("test_predictions_misclassified.csv"))
     print(f"Saved {task_name} outputs to {out_dir}")
     return metrics_out
 
@@ -367,12 +387,12 @@ def read_prediction_csv(path: Path) -> Dict[int, Dict[str, str]]:
         return {int(row["index"]): row for row in reader}
 
 
-def compare_task_predictions(output_dir: Path) -> None:
+def compare_task_predictions(output_dir: Path) -> Dict[str, int]:
     a_path = output_dir / "taskA_char" / "test_predictions.csv"
     b_path = output_dir / "taskB_word" / "test_predictions.csv"
     if not a_path.exists() or not b_path.exists():
         print("Comparison skipped: Task A and Task B prediction files are both required.")
-        return
+        return {"a_wrong_b_right": 0, "b_wrong_a_right": 0}
 
     a_rows = read_prediction_csv(a_path)
     b_rows = read_prediction_csv(b_path)
@@ -400,6 +420,10 @@ def compare_task_predictions(output_dir: Path) -> None:
     write_csv(output_dir / "B_wrong_A_right.csv", fields, b_wrong_a_right)
     write_comparison_notes(output_dir / "comparison_examples.md", a_wrong_b_right, b_wrong_a_right)
     print(f"Saved A/B comparison outputs to {output_dir}")
+    return {
+        "a_wrong_b_right": len(a_wrong_b_right),
+        "b_wrong_a_right": len(b_wrong_a_right),
+    }
 
 
 def write_comparison_notes(path: Path, a_wrong_b_right, b_wrong_a_right) -> None:
@@ -455,6 +479,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--prepare-task-b-data", action="store_true")
     parser.add_argument("--only-compare", action="store_true")
     parser.add_argument("--quick", action="store_true", help="Small smoke-test run; not for final report.")
+    add_swanlab_args(parser)
     args = parser.parse_args(argv)
     if args.quick:
         args.epochs = 1
@@ -470,15 +495,39 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv or sys.argv[1:])
     require_dependencies()
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    swanlab = SwanLabLogger.from_args(
+        args,
+        project=args.swanlab_project,
+        experiment_name=args.swanlab_experiment or "project3_transformer_ab",
+        config={
+            "project": "project3",
+            "tasks": args.tasks,
+            "student_id": args.student_id,
+            "seed": args.seed,
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "pad_size": args.pad_size,
+            "learning_rate": args.learning_rate,
+            "max_vocab": args.max_vocab,
+            "quick": args.quick,
+        },
+    )
 
-    if args.prepare_task_b_data or "B" in args.tasks:
-        write_segmented_files(args.data_dir, Path("project3_solution/THUCNews_word/data"))
+    try:
+        if args.prepare_task_b_data or "B" in args.tasks:
+            word_data_dir = Path("project3_solution/THUCNews_word/data")
+            write_segmented_files(args.data_dir, word_data_dir)
+            swanlab.log_output_path("project3/taskB_word_data_dir", word_data_dir)
 
-    if not args.only_compare:
-        for task in args.tasks:
-            train_one_task(task, args)
+        if not args.only_compare:
+            for task in args.tasks:
+                train_one_task(task, args, swanlab)
 
-    compare_task_predictions(Path(args.output_dir))
+        comparison = compare_task_predictions(Path(args.output_dir))
+        swanlab.log_metrics(comparison, prefix="project3/comparison")
+        swanlab.log_output_path("project3/comparison_examples", Path(args.output_dir) / "comparison_examples.md")
+    finally:
+        swanlab.finish()
 
 
 if __name__ == "__main__":

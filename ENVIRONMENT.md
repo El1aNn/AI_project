@@ -64,6 +64,32 @@ out and continue. You can retry the data download separately:
 bash start.sh download-data
 ```
 
+## SwanLab Metric Upload
+
+SwanLab is included in `requirements.txt`, but upload is disabled by default.
+Enable it only when you want to sync metrics:
+
+```bash
+export SWANLAB=1
+export SWANLAB_PROJECT=AI_project
+# Optional:
+# export SWANLAB_API_KEY=your_api_key
+# export SWANLAB_EXPERIMENT=my_run_name
+# export SWANLAB_WORKSPACE=my_workspace
+# export SWANLAB_LOGDIR=./swanlog
+# export SWANLAB_MODE=cloud
+
+bash start.sh all YOUR_STUDENT_ID
+```
+
+The scripts log useful scalar metrics and report pointers:
+
+- Project 1/2: epoch loss, vocabulary/token counts, KNN mean cosine,
+  SimLex-999 Spearman correlation, analogy accuracy.
+- Project 3: Task A/B train-dev curves, test accuracy/loss, misclassified
+  counts, A-wrong/B-right and B-wrong/A-right counts.
+- Project 4: Trainer logs, final accuracy/F1, validation misclassified counts.
+
 Run quick smoke tests:
 
 ```bash

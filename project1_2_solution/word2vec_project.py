@@ -27,6 +27,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Sequence, Tuple
 
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from common.swanlab_helper import SwanLabLogger, add_swanlab_args
+
 
 QUERY_WORDS = [
     "july", "reliable", "play", "willing", "good", "very", "patient",
@@ -296,6 +302,7 @@ def train_embeddings(
     token_ids: Sequence[int],
     vocab: Vocab,
     args: argparse.Namespace,
+    swanlab: SwanLabLogger,
 ):
     import torch
     from torch.utils.data import DataLoader
@@ -339,6 +346,15 @@ def train_embeddings(
             total_loss += loss.item()
         avg_loss = total_loss / max(1, len(loader))
         print(f"{model_name} epoch {epoch}: loss={avg_loss:.4f}")
+        swanlab.log_metrics(
+            {
+                "train_loss": avg_loss,
+                "samples": len(dataset),
+                "vocab_size": len(vocab),
+            },
+            step=epoch,
+            prefix=f"project1_2/{model_name}",
+        )
 
     return model.embeddings()
 
@@ -607,6 +623,7 @@ def run_evaluations(model_names: Sequence[str], args: argparse.Namespace):
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
     print(f"Saved evaluation summary to {summary_path}")
+    return summary
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -638,6 +655,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="Small smoke-test run; not suitable for final report numbers.",
     )
+    add_swanlab_args(parser)
     args = parser.parse_args(argv)
 
     if args.quick:
@@ -654,20 +672,50 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv or sys.argv[1:])
     require_training_dependencies()
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    swanlab = SwanLabLogger.from_args(
+        args,
+        project=args.swanlab_project,
+        experiment_name=args.swanlab_experiment or "project1_2_word2vec",
+        config={
+            "project": "project1_2",
+            "models": args.models,
+            "student_id": args.student_id,
+            "seed": args.seed,
+            "embedding_dim": args.embedding_dim,
+            "window_size": args.window_size,
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "min_count": args.min_count,
+            "max_vocab": args.max_vocab,
+            "max_samples": args.max_samples,
+            "quick": args.quick,
+        },
+    )
 
-    if args.mode in {"all", "train"}:
-        tokens = load_corpus_tokens(args.corpus_path, download_reuters=not args.no_download_reuters)
-        print(f"Loaded {len(tokens):,} tokens")
-        vocab = build_vocab(tokens, args.min_count, args.max_vocab)
-        token_ids = numericalize(tokens, vocab)
-        print(f"Vocabulary size: {len(vocab):,}")
+    try:
+        if args.mode in {"all", "train"}:
+            tokens = load_corpus_tokens(args.corpus_path, download_reuters=not args.no_download_reuters)
+            print(f"Loaded {len(tokens):,} tokens")
+            vocab = build_vocab(tokens, args.min_count, args.max_vocab)
+            token_ids = numericalize(tokens, vocab)
+            print(f"Vocabulary size: {len(vocab):,}")
+            swanlab.log_metrics(
+                {"token_count": len(tokens), "vocab_size": len(vocab)},
+                prefix="project1_2/corpus",
+            )
 
-        for model_name in args.models:
-            embeddings = train_embeddings(model_name, token_ids, vocab, args)
-            save_vec(args.output_dir / f"{model_name}.vec", vocab, embeddings)
+            for model_name in args.models:
+                embeddings = train_embeddings(model_name, token_ids, vocab, args, swanlab)
+                vec_path = args.output_dir / f"{model_name}.vec"
+                save_vec(vec_path, vocab, embeddings)
+                swanlab.log_output_path(f"project1_2/{model_name}/vec_path", vec_path)
 
-    if args.mode in {"all", "eval"}:
-        run_evaluations(args.models, args)
+        if args.mode in {"all", "eval"}:
+            summary = run_evaluations(args.models, args)
+            swanlab.log_metrics(summary, prefix="project1_2/eval")
+            swanlab.log_output_path("project1_2/evaluation_summary", args.output_dir / "evaluation_summary.json")
+    finally:
+        swanlab.finish()
 
 
 if __name__ == "__main__":

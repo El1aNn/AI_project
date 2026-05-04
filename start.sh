@@ -36,6 +36,13 @@ Environment variables:
   PYTHON_BIN=python3      Python executable to use
   STUDENT_ID=123456789   Student ID used for reproducible sampling
   NLTK_TIMEOUT_SECONDS=120  Timeout for NLTK Reuters download
+  SWANLAB=1              Enable SwanLab metric upload
+  SWANLAB_PROJECT=AI_project
+  SWANLAB_EXPERIMENT=name
+  SWANLAB_WORKSPACE=name
+  SWANLAB_LOGDIR=./swanlog
+  SWANLAB_MODE=cloud     SwanLab mode, e.g. cloud/local/offline/disabled
+  SWANLAB_API_KEY=...    Optional non-interactive SwanLab login key
 
 Notes:
   - running without arguments performs an environment check.
@@ -49,6 +56,7 @@ EOF
 check_env() {
   "$PYTHON_BIN" - <<'PY'
 import importlib.util
+import os
 import sys
 
 required = [
@@ -65,6 +73,8 @@ required = [
     "evaluate",
     "accelerate",
 ]
+if os.environ.get("SWANLAB", "").lower() in {"1", "true", "yes", "on", "cloud", "local", "offline"}:
+    required.append("swanlab")
 
 missing = [name for name in required if importlib.util.find_spec(name) is None]
 print(f"Python: {sys.executable}")
@@ -78,6 +88,35 @@ if missing:
     raise SystemExit(1)
 print("All required Python packages are available.")
 PY
+}
+
+build_swanlab_args() {
+  SWANLAB_ARGS=()
+  local swanlab_value="${SWANLAB:-0}"
+  local swanlab_mode="${SWANLAB_MODE:-cloud}"
+  case "$swanlab_value" in
+    cloud|local|offline)
+      if [[ -z "${SWANLAB_MODE:-}" ]]; then
+        swanlab_mode="$swanlab_value"
+      fi
+      ;;
+  esac
+  case "$swanlab_value" in
+    1|true|TRUE|yes|YES|on|ON|cloud|local|offline)
+      SWANLAB_ARGS+=(--swanlab)
+      SWANLAB_ARGS+=(--swanlab-project "${SWANLAB_PROJECT:-AI_project}")
+      SWANLAB_ARGS+=(--swanlab-mode "$swanlab_mode")
+      if [[ -n "${SWANLAB_EXPERIMENT:-}" ]]; then
+        SWANLAB_ARGS+=(--swanlab-experiment "$SWANLAB_EXPERIMENT")
+      fi
+      if [[ -n "${SWANLAB_WORKSPACE:-}" ]]; then
+        SWANLAB_ARGS+=(--swanlab-workspace "$SWANLAB_WORKSPACE")
+      fi
+      if [[ -n "${SWANLAB_LOGDIR:-}" ]]; then
+        SWANLAB_ARGS+=(--swanlab-logdir "$SWANLAB_LOGDIR")
+      fi
+      ;;
+  esac
 }
 
 setup_env() {
@@ -121,28 +160,34 @@ PY
 }
 
 run_quick() {
-  "$PYTHON_BIN" project1_2_solution/word2vec_project.py --quick --student-id "$STUDENT_ID"
-  "$PYTHON_BIN" project3_solution/run_project3_ab.py --quick --student-id "$STUDENT_ID"
-  "$PYTHON_BIN" project4_solution/run_bert_tasks.py --task mrpc --quick
+  build_swanlab_args
+  "$PYTHON_BIN" project1_2_solution/word2vec_project.py --quick --student-id "$STUDENT_ID" "${SWANLAB_ARGS[@]}"
+  "$PYTHON_BIN" project3_solution/run_project3_ab.py --quick --student-id "$STUDENT_ID" "${SWANLAB_ARGS[@]}"
+  "$PYTHON_BIN" project4_solution/run_bert_tasks.py --task mrpc --quick "${SWANLAB_ARGS[@]}"
 }
 
 run_project1() {
+  build_swanlab_args
   "$PYTHON_BIN" project1_2_solution/word2vec_project.py \
     --student-id "$STUDENT_ID" \
     --epochs 10 \
     --embedding-dim 100 \
     --window-size 2 \
-    --min-count 5
+    --min-count 5 \
+    "${SWANLAB_ARGS[@]}"
 }
 
 run_project3() {
+  build_swanlab_args
   "$PYTHON_BIN" project3_solution/run_project3_ab.py \
     --epochs 6 \
-    --student-id "$STUDENT_ID"
+    --student-id "$STUDENT_ID" \
+    "${SWANLAB_ARGS[@]}"
 }
 
 run_project4() {
-  "$PYTHON_BIN" project4_solution/run_bert_tasks.py --task all --epochs 2
+  build_swanlab_args
+  "$PYTHON_BIN" project4_solution/run_bert_tasks.py --task all --epochs 2 "${SWANLAB_ARGS[@]}"
 }
 
 case "$COMMAND" in

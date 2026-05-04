@@ -29,6 +29,27 @@ bash start.sh check
 See `ENVIRONMENT.md` for missing packages and recommended Python setup.
 On AutoDL, `bash start.sh setup-cn` is usually faster.
 
+## SwanLab Upload
+
+Metric upload is optional. Enable it with environment variables:
+
+```bash
+export SWANLAB=1
+export SWANLAB_PROJECT=AI_project
+# Optional:
+# export SWANLAB_API_KEY=your_api_key
+# export SWANLAB_EXPERIMENT=my_run_name
+# export SWANLAB_WORKSPACE=my_workspace
+# export SWANLAB_LOGDIR=./swanlog
+# export SWANLAB_MODE=cloud
+
+bash start.sh quick YOUR_STUDENT_ID
+bash start.sh all YOUR_STUDENT_ID
+```
+
+Logged items include training loss/accuracy curves, final evaluation metrics,
+misclassification counts, and paths to generated CSV/JSON/Markdown outputs.
+
 ## 1. Projects 1 and 2: CBOW and Skip-gram
 
 Quick smoke test:

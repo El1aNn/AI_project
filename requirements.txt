@@ -10,3 +10,4 @@ transformers>=4.40
 datasets>=2.18
 evaluate>=0.4
 accelerate>=0.28
+swanlab>=0.5
