@@ -139,6 +139,8 @@ Main outputs:
 - `project4_solution/outputs/summary.json`
 
 Use `report_examples.md` files for the required discussion examples.
+The runner is compatible with both older Transformers versions using
+`Trainer(tokenizer=...)` and newer versions using `Trainer(processing_class=...)`.
 
 ## 4. Create Submission Zip
 

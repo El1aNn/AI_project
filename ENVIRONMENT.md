@@ -115,4 +115,7 @@ The first run needs internet access for:
 - NLTK Reuters corpus for Project 1/2, unless `--corpus-path` is used.
 - Hugging Face GLUE datasets and pretrained BERT model for Project 4.
 
+Project 4 supports newer Transformers versions where `Trainer` uses
+`processing_class` instead of the older `tokenizer` argument.
+
 Project 3 data is already included in `project3_source/THUCNews/data`.

@@ -16,6 +16,7 @@ import argparse
 import csv
 import inspect
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Dict, List, Sequence
@@ -60,23 +61,33 @@ def require_dependencies() -> None:
         )
 
 
-def build_training_arguments(output_dir: Path, args):
+def build_training_arguments(output_dir: Path, args, train_size: int):
     from transformers import TrainingArguments
 
     sig = inspect.signature(TrainingArguments.__init__)
+    warmup_steps = 0
+    if args.warmup_steps is not None:
+        warmup_steps = args.warmup_steps
+    elif args.warmup_ratio > 0:
+        steps_per_epoch = math.ceil(train_size / max(1, args.batch_size))
+        warmup_steps = int(math.ceil(steps_per_epoch * float(args.epochs) * args.warmup_ratio))
+
     kwargs = {
         "output_dir": str(output_dir),
         "learning_rate": args.learning_rate,
         "per_device_train_batch_size": args.batch_size,
         "per_device_eval_batch_size": args.eval_batch_size,
         "num_train_epochs": args.epochs,
-        "warmup_ratio": args.warmup_ratio,
         "weight_decay": args.weight_decay,
         "logging_strategy": "epoch",
         "save_strategy": "epoch",
         "report_to": [],
         "seed": args.seed,
     }
+    if "warmup_steps" in sig.parameters:
+        kwargs["warmup_steps"] = warmup_steps
+    elif "warmup_ratio" in sig.parameters:
+        kwargs["warmup_ratio"] = args.warmup_ratio
     if "eval_strategy" in sig.parameters:
         kwargs["eval_strategy"] = "epoch"
     else:
@@ -236,15 +247,21 @@ def run_task(task: str, args, swanlab: SwanLabLogger) -> Dict[str, float]:
             if logs:
                 swanlab.log_metrics(logs, step=int(state.global_step), prefix=f"project4/{task}/trainer")
 
-    trainer = Trainer(
-        model=model,
-        args=build_training_arguments(output_dir / "trainer", args),
-        train_dataset=tokenized["train"],
-        eval_dataset=tokenized["validation"],
-        tokenizer=tokenizer,
-        compute_metrics=compute_metrics,
-        callbacks=[SwanLabTrainerCallback()] if swanlab.enabled else None,
-    )
+    trainer_kwargs = {
+        "model": model,
+        "args": build_training_arguments(output_dir / "trainer", args, len(tokenized["train"])),
+        "train_dataset": tokenized["train"],
+        "eval_dataset": tokenized["validation"],
+        "compute_metrics": compute_metrics,
+        "callbacks": [SwanLabTrainerCallback()] if swanlab.enabled else None,
+    }
+    trainer_sig = inspect.signature(Trainer.__init__)
+    if "processing_class" in trainer_sig.parameters:
+        trainer_kwargs["processing_class"] = tokenizer
+    elif "tokenizer" in trainer_sig.parameters:
+        trainer_kwargs["tokenizer"] = tokenizer
+
+    trainer = Trainer(**trainer_kwargs)
     trainer.train()
     eval_metrics = trainer.evaluate()
     trainer.save_model(output_dir / "model")
@@ -293,6 +310,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--eval-batch-size", type=int, default=32)
     parser.add_argument("--learning-rate", type=float, default=3e-5)
     parser.add_argument("--warmup-ratio", type=float, default=0.1)
+    parser.add_argument("--warmup-steps", type=int, default=None)
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-train-samples", type=int, default=None)
