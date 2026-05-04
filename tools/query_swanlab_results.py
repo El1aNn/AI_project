@@ -169,17 +169,27 @@ def query_results(args: argparse.Namespace) -> Dict[str, Any]:
         )
 
     api = OpenApi(api_key=api_key)
-    workspaces = response_data(api.list_workspaces())
-    workspace = args.workspace
-    if not workspace and workspaces:
-        workspace = get_field(workspaces[0], "username")
+    workspace = args.workspace or ""
+    projects = response_data(api.list_projects(username=workspace))
+    available_projects = [get_field(project, "name") for project in projects or []]
+    if args.project not in available_projects:
+        result = {
+            "project": args.project,
+            "workspace": workspace or "<default>",
+            "experiment_count_returned": 0,
+            "available_projects": available_projects,
+            "experiments": [],
+            "warning": f"Project `{args.project}` was not found for this API key/workspace.",
+        }
+        return result
 
     experiments = response_data(api.list_experiments(project=args.project, username=workspace))
     experiments = sort_experiments(experiments)[: args.limit]
 
     result: Dict[str, Any] = {
         "project": args.project,
-        "workspace": workspace,
+        "workspace": workspace or "<default>",
+        "available_projects": available_projects,
         "experiment_count_returned": len(experiments),
         "experiments": [],
     }
@@ -220,6 +230,14 @@ def write_outputs(result: Mapping[str, Any], output_dir: Path) -> None:
         f"- Experiments returned: `{result.get('experiment_count_returned')}`",
         "",
     ]
+    warning = result.get("warning")
+    if warning:
+        lines.extend(["## Warning", "", str(warning), ""])
+    available = result.get("available_projects") or []
+    if available:
+        lines.extend(["## Available Projects", ""])
+        lines.extend([f"- `{name}`" for name in available])
+        lines.append("")
     for exp in result.get("experiments", []):
         lines.extend(
             [
@@ -252,6 +270,10 @@ def write_outputs(result: Mapping[str, Any], output_dir: Path) -> None:
 def print_console_summary(result: Mapping[str, Any]) -> None:
     print(f"Project: {result.get('project')}")
     print(f"Workspace: {result.get('workspace')}")
+    if result.get("warning"):
+        print(f"Warning: {result.get('warning')}")
+    if result.get("available_projects"):
+        print("Available projects:", ", ".join(result.get("available_projects") or []))
     print(f"Experiments returned: {result.get('experiment_count_returned')}")
     for exp in result.get("experiments", []):
         print(f"\n[{exp.get('state')}] {exp.get('name')} ({exp.get('cuid')})")
