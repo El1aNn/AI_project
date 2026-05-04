@@ -16,7 +16,10 @@ TRUE_VALUES = {"1", "true", "yes", "on", "cloud", "local", "offline"}
 
 
 def env_enabled(name: str = "SWANLAB") -> bool:
-    return os.environ.get(name, "").strip().lower() in TRUE_VALUES
+    return (
+        os.environ.get(name, "").strip().lower() in TRUE_VALUES
+        or bool(os.environ.get("SWANLAB_API_KEY", "").strip())
+    )
 
 
 def add_swanlab_args(parser) -> None:

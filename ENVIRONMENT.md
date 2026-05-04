@@ -66,14 +66,14 @@ bash start.sh download-data
 
 ## SwanLab Metric Upload
 
-SwanLab is included in `requirements.txt`, but upload is disabled by default.
-Enable it only when you want to sync metrics:
+SwanLab is included in `requirements.txt`. Upload turns on automatically when
+`SWANLAB_API_KEY` is present, or you can enable it explicitly with `SWANLAB=1`:
 
 ```bash
-export SWANLAB=1
+export SWANLAB_API_KEY=your_api_key
 export SWANLAB_PROJECT=AI_project
 # Optional:
-# export SWANLAB_API_KEY=your_api_key
+# export SWANLAB=1
 # export SWANLAB_EXPERIMENT=my_run_name
 # export SWANLAB_WORKSPACE=my_workspace
 # export SWANLAB_LOGDIR=./swanlog

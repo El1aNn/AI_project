@@ -31,13 +31,14 @@ On AutoDL, `bash start.sh setup-cn` is usually faster.
 
 ## SwanLab Upload
 
-Metric upload is optional. Enable it with environment variables:
+Metric upload is optional. It turns on automatically when `SWANLAB_API_KEY` is
+present, or you can enable it explicitly with `SWANLAB=1`:
 
 ```bash
-export SWANLAB=1
+export SWANLAB_API_KEY=your_api_key
 export SWANLAB_PROJECT=AI_project
 # Optional:
-# export SWANLAB_API_KEY=your_api_key
+# export SWANLAB=1
 # export SWANLAB_EXPERIMENT=my_run_name
 # export SWANLAB_WORKSPACE=my_workspace
 # export SWANLAB_LOGDIR=./swanlog

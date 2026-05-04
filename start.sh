@@ -36,7 +36,7 @@ Environment variables:
   PYTHON_BIN=python3      Python executable to use
   STUDENT_ID=123456789   Student ID used for reproducible sampling
   NLTK_TIMEOUT_SECONDS=120  Timeout for NLTK Reuters download
-  SWANLAB=1              Enable SwanLab metric upload
+  SWANLAB=1              Enable SwanLab metric upload. SWANLAB_API_KEY also enables it automatically.
   SWANLAB_PROJECT=AI_project
   SWANLAB_EXPERIMENT=name
   SWANLAB_WORKSPACE=name
@@ -73,7 +73,10 @@ required = [
     "evaluate",
     "accelerate",
 ]
-if os.environ.get("SWANLAB", "").lower() in {"1", "true", "yes", "on", "cloud", "local", "offline"}:
+if (
+    os.environ.get("SWANLAB", "").lower() in {"1", "true", "yes", "on", "cloud", "local", "offline"}
+    or os.environ.get("SWANLAB_API_KEY", "").strip()
+):
     required.append("swanlab")
 
 missing = [name for name in required if importlib.util.find_spec(name) is None]
@@ -93,6 +96,9 @@ PY
 build_swanlab_args() {
   SWANLAB_ARGS=()
   local swanlab_value="${SWANLAB:-0}"
+  if [[ "$swanlab_value" == "0" && -n "${SWANLAB_API_KEY:-}" ]]; then
+    swanlab_value="1"
+  fi
   local swanlab_mode="${SWANLAB_MODE:-cloud}"
   case "$swanlab_value" in
     cloud|local|offline)
