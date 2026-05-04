@@ -10,6 +10,7 @@ env/
 .pytest_cache/
 
 # Generated project outputs
+.nltk_data/
 project1_2_solution/outputs/
 project3_solution/outputs/
 project3_solution/THUCNews_word/

@@ -51,6 +51,19 @@ Install dependencies:
 bash start.sh setup
 ```
 
+On AutoDL or China networks, use the Tsinghua PyPI mirror:
+
+```bash
+bash start.sh setup-cn
+```
+
+If the install finishes but NLTK Reuters download is slow, the script will time
+out and continue. You can retry the data download separately:
+
+```bash
+bash start.sh download-data
+```
+
 Run quick smoke tests:
 
 ```bash

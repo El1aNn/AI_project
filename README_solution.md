@@ -27,6 +27,7 @@ bash start.sh check
 ```
 
 See `ENVIRONMENT.md` for missing packages and recommended Python setup.
+On AutoDL, `bash start.sh setup-cn` is usually faster.
 
 ## 1. Projects 1 and 2: CBOW and Skip-gram
 

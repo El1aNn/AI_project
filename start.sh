@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+export NLTK_DATA="$ROOT_DIR/.nltk_data${NLTK_DATA:+:$NLTK_DATA}"
+
 if [[ -z "${PYTHON_BIN:-}" ]]; then
   if command -v python3 >/dev/null 2>&1; then
     PYTHON_BIN="python3"
@@ -21,6 +23,8 @@ Usage:
   bash start.sh
   bash start.sh check
   bash start.sh setup
+  bash start.sh setup-cn
+  bash start.sh download-data
   bash start.sh quick [STUDENT_ID]
   bash start.sh project1 [STUDENT_ID]
   bash start.sh project3 [STUDENT_ID]
@@ -31,9 +35,12 @@ Usage:
 Environment variables:
   PYTHON_BIN=python3      Python executable to use
   STUDENT_ID=123456789   Student ID used for reproducible sampling
+  NLTK_TIMEOUT_SECONDS=120  Timeout for NLTK Reuters download
 
 Notes:
   - running without arguments performs an environment check.
+  - setup-cn installs packages through the Tsinghua PyPI mirror.
+  - setup/setup-cn also try to download NLTK Reuters, but continue if it times out.
   - quick runs small smoke tests only; do not use quick outputs in the report.
   - all runs the final settings and may take a long time.
 EOF
@@ -66,18 +73,46 @@ if missing:
     print("Missing packages:")
     for name in missing:
         print(f"  - {name}")
-    print("\nInstall them with: python -m pip install -r requirements.txt")
+    print("\nInstall them with: bash start.sh setup")
+    print("If PyPI is slow in AutoDL, use: bash start.sh setup-cn")
     raise SystemExit(1)
 print("All required Python packages are available.")
 PY
 }
 
 setup_env() {
+  echo "Installing Python packages with $PYTHON_BIN..."
   "$PYTHON_BIN" -m pip install -r requirements.txt
+  download_reuters
+}
+
+setup_env_cn() {
+  echo "Installing Python packages with $PYTHON_BIN through Tsinghua mirror..."
+  "$PYTHON_BIN" -m pip install -r requirements.txt \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    --trusted-host pypi.tuna.tsinghua.edu.cn
+  download_reuters
+}
+
+download_reuters() {
+  echo "Downloading NLTK Reuters corpus to $ROOT_DIR/.nltk_data..."
+  echo "If this step is slow, press Ctrl+C and rerun training later; Project 1/2 can download it on demand."
   "$PYTHON_BIN" - <<'PY'
+import os
+import signal
+
+timeout = int(os.environ.get("NLTK_TIMEOUT_SECONDS", "120"))
+
+def on_timeout(signum, frame):
+    raise TimeoutError(f"NLTK Reuters download timed out after {timeout} seconds")
+
 try:
     import nltk
-    nltk.download("reuters")
+    signal.signal(signal.SIGALRM, on_timeout)
+    signal.alarm(timeout)
+    target = os.environ.get("NLTK_DATA", "").split(os.pathsep)[0] or None
+    nltk.download("reuters", download_dir=target, quiet=False)
+    signal.alarm(0)
     print("NLTK Reuters corpus is ready.")
 except Exception as exc:
     print(f"Could not download NLTK Reuters automatically: {exc}")
@@ -124,6 +159,8 @@ case "$COMMAND" in
       echo "Environment is not ready yet."
       echo "Run setup first:"
       echo "  bash start.sh setup"
+      echo "Or on AutoDL/China network:"
+      echo "  bash start.sh setup-cn"
       exit 1
     fi
     ;;
@@ -135,6 +172,12 @@ case "$COMMAND" in
     ;;
   setup)
     setup_env
+    ;;
+  setup-cn)
+    setup_env_cn
+    ;;
+  download-data)
+    download_reuters
     ;;
   quick)
     check_env
