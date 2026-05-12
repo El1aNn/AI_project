@@ -18,8 +18,10 @@ project1_2_solution/outputs/
 project3_solution/outputs/
 project3_solution/THUCNews_word/
 project4_solution/outputs/
+experiment_data/
 
 # Large model/checkpoint artifacts
+checkpoints/
 *.ckpt
 *.pt
 *.pth

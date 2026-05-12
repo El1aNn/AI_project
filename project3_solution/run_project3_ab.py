@@ -357,7 +357,11 @@ def train_one_task(task: str, args: argparse.Namespace, swanlab: SwanLabLogger) 
     (out_dir / "classification_report.txt").write_text(test_metrics["classification_report"], encoding="utf-8")
     (out_dir / "vocab.json").write_text(json.dumps(vocab, indent=2, ensure_ascii=False), encoding="utf-8")
     if args.save_model:
-        torch.save(model.state_dict(), out_dir / "Transformer.ckpt")
+        checkpoint_dir = Path(args.checkpoint_dir) / task_name
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_path = checkpoint_dir / "Transformer.ckpt"
+        torch.save(model.state_dict(), checkpoint_path)
+        swanlab.log_output_path(f"project3/{task_name}/checkpoint", checkpoint_path)
     wrong_count = sum(1 for row in read_prediction_csv(test_csv).values() if int(row["correct"]) == 0)
     swanlab.log_metrics(
         {
@@ -464,6 +468,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--source-dir", type=Path, default=Path("project3_source"))
     parser.add_argument("--data-dir", type=Path, default=Path("project3_source/THUCNews/data"))
     parser.add_argument("--output-dir", type=Path, default=Path("project3_solution/outputs"))
+    parser.add_argument("--checkpoint-dir", type=Path, default=Path("project3_solution/checkpoints"))
     parser.add_argument("--tasks", nargs="+", choices=["A", "B"], default=["A", "B"])
     parser.add_argument("--student-id", type=int, default=20260517)
     parser.add_argument("--seed", type=int, default=1)
@@ -511,13 +516,15 @@ def main(argv: Sequence[str] | None = None) -> None:
             "pad_size": args.pad_size,
             "learning_rate": args.learning_rate,
             "max_vocab": args.max_vocab,
+            "output_dir": str(args.output_dir),
+            "checkpoint_dir": str(args.checkpoint_dir),
             "quick": args.quick,
         },
     )
 
     try:
         if args.prepare_task_b_data or "B" in args.tasks:
-            word_data_dir = Path("project3_solution/THUCNews_word/data")
+            word_data_dir = Path(args.output_dir) / "THUCNews_word" / "data"
             write_segmented_files(args.data_dir, word_data_dir)
             swanlab.log_output_path("project3/taskB_word_data_dir", word_data_dir)
 

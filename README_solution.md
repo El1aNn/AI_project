@@ -69,6 +69,38 @@ bash start.sh analyze
 
 This writes `RESULT_ANALYSIS.md`.
 
+## Submission Run With Separate Result and Checkpoint Folders
+
+For the final submission experiments, use the dedicated `submission` command.
+It writes report data such as CSV, JSON, vectors, and Markdown examples under
+one directory, while model checkpoints are saved under a separate directory:
+
+```bash
+bash start.sh submission YOUR_STUDENT_ID ./experiment_data/submission ./checkpoints/submission
+```
+
+You can also set the paths with environment variables:
+
+```bash
+export EXPERIMENT_DATA_DIR=./experiment_data/submission
+export CHECKPOINT_DIR=./checkpoints/submission
+bash start.sh submission YOUR_STUDENT_ID
+```
+
+Submission output layout:
+
+- `experiment_data/submission/project1_2/`
+- `experiment_data/submission/project3/`
+- `experiment_data/submission/project4/`
+- `checkpoints/submission/project3/`
+- `checkpoints/submission/project4/`
+
+After the run finishes, generate the local analysis from that result directory:
+
+```bash
+bash start.sh analyze ./experiment_data/submission
+```
+
 ## 1. Projects 1 and 2: CBOW and Skip-gram
 
 Quick smoke test:
@@ -165,9 +197,10 @@ The runner is compatible with both older Transformers versions using
 After the report and outputs are ready:
 
 ```bash
-bash start.sh zip
+bash start.sh zip nlp_projects_submission.zip ./experiment_data/submission
 ```
 
 This creates `nlp_projects_submission.zip` with source code, original materials,
-and generated outputs. Add your finished PDF/Word report before uploading if
-your instructor requires it inside the same zip.
+and generated outputs. Checkpoints are excluded from the zip. Add your finished
+PDF/Word report before uploading if your instructor requires it inside the same
+zip.

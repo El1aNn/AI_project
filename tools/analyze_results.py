@@ -52,8 +52,19 @@ def quality_line(name: str, value: float | None, good: float, ok: float, higher_
     return f"- {name}: `{value:.4f}` -> {label}."
 
 
-def analyze_project1(root: Path) -> list[str]:
-    summary = load_json(root / "project1_2_solution/outputs/evaluation_summary.json")
+def existing_path(*paths: Path) -> Path:
+    for path in paths:
+        if path.exists():
+            return path
+    return paths[0]
+
+
+def analyze_project1(root: Path, data_dir: Path | None = None) -> list[str]:
+    summary_path = existing_path(
+        *(([data_dir / "project1_2/evaluation_summary.json"] if data_dir else []))
+        + [root / "project1_2_solution/outputs/evaluation_summary.json"]
+    )
+    summary = load_json(summary_path)
     lines = ["## Project 1/2: CBOW and Skip-gram", ""]
     if not summary:
         lines.append("- Local `evaluation_summary.json` not found.")
@@ -76,11 +87,15 @@ def analyze_project1(root: Path) -> list[str]:
     return lines
 
 
-def analyze_project3(root: Path) -> list[str]:
+def analyze_project3(root: Path, data_dir: Path | None = None) -> list[str]:
     lines = ["## Project 3: Transformer A/B", ""]
     found = False
     for task_name in ["taskA_char", "taskB_word"]:
-        metrics = load_json(root / f"project3_solution/outputs/{task_name}/metrics.json")
+        metrics_path = existing_path(
+            *(([data_dir / f"project3/{task_name}/metrics.json"] if data_dir else []))
+            + [root / f"project3_solution/outputs/{task_name}/metrics.json"]
+        )
+        metrics = load_json(metrics_path)
         if not metrics:
             lines.append(f"- `{task_name}` metrics not found.")
             continue
@@ -88,8 +103,14 @@ def analyze_project3(root: Path) -> list[str]:
         test = metrics.get("test", {})
         lines.append(quality_line(f"{task_name} test accuracy", test.get("accuracy"), 0.80, 0.65))
         lines.append(quality_line(f"{task_name} test loss", test.get("loss"), 0.7, 1.2, higher_better=False))
-    comparison_a = root / "project3_solution/outputs/A_wrong_B_right.csv"
-    comparison_b = root / "project3_solution/outputs/B_wrong_A_right.csv"
+    comparison_a = existing_path(
+        *(([data_dir / "project3/A_wrong_B_right.csv"] if data_dir else []))
+        + [root / "project3_solution/outputs/A_wrong_B_right.csv"]
+    )
+    comparison_b = existing_path(
+        *(([data_dir / "project3/B_wrong_A_right.csv"] if data_dir else []))
+        + [root / "project3_solution/outputs/B_wrong_A_right.csv"]
+    )
     if comparison_a.exists() and comparison_b.exists():
         lines.append("- A/B comparison CSV files are present for report examples.")
     elif found:
@@ -98,9 +119,13 @@ def analyze_project3(root: Path) -> list[str]:
     return lines
 
 
-def analyze_project4(root: Path) -> list[str]:
+def analyze_project4(root: Path, data_dir: Path | None = None) -> list[str]:
     lines = ["## Project 4: BERT", ""]
-    summary = load_json(root / "project4_solution/outputs/summary.json")
+    summary_path = existing_path(
+        *(([data_dir / "project4/summary.json"] if data_dir else []))
+        + [root / "project4_solution/outputs/summary.json"]
+    )
+    summary = load_json(summary_path)
     if not summary:
         lines.append("- Local Project 4 summary not found.")
         return lines
@@ -169,6 +194,12 @@ def analyze_swanlab(root: Path) -> list[str]:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("."))
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=None,
+        help="Submission experiment data directory, for example experiment_data/submission.",
+    )
     parser.add_argument("--output", type=Path, default=Path("RESULT_ANALYSIS.md"))
     return parser.parse_args(argv)
 
@@ -176,15 +207,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     root = args.root.resolve()
+    data_dir = args.data_dir.resolve() if args.data_dir else None
     lines = [
         "# Result Analysis",
         "",
         "This report is generated from local output JSON/CSV files and optional SwanLab query summaries.",
         "",
     ]
-    lines.extend(analyze_project1(root))
-    lines.extend(analyze_project3(root))
-    lines.extend(analyze_project4(root))
+    if data_dir:
+        lines.extend(["- Experiment data directory: `" + str(data_dir) + "`.", ""])
+    lines.extend(analyze_project1(root, data_dir))
+    lines.extend(analyze_project3(root, data_dir))
+    lines.extend(analyze_project4(root, data_dir))
     lines.extend(analyze_swanlab(root))
     lines.extend(
         [

@@ -228,7 +228,9 @@ def run_task(task: str, args, swanlab: SwanLabLogger) -> Dict[str, float]:
     from transformers import BertForSequenceClassification, BertTokenizerFast, Trainer, TrainerCallback
 
     output_dir = Path(args.output_dir) / task
+    checkpoint_dir = Path(args.checkpoint_dir) / task
     output_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
     dataset = load_task_dataset(task, args)
     tokenizer = BertTokenizerFast.from_pretrained(args.tokenizer_name)
     tokenized = tokenize_dataset(task, dataset, tokenizer)
@@ -249,7 +251,7 @@ def run_task(task: str, args, swanlab: SwanLabLogger) -> Dict[str, float]:
 
     trainer_kwargs = {
         "model": model,
-        "args": build_training_arguments(output_dir / "trainer", args, len(tokenized["train"])),
+        "args": build_training_arguments(checkpoint_dir / "trainer", args, len(tokenized["train"])),
         "train_dataset": tokenized["train"],
         "eval_dataset": tokenized["validation"],
         "compute_metrics": compute_metrics,
@@ -264,8 +266,9 @@ def run_task(task: str, args, swanlab: SwanLabLogger) -> Dict[str, float]:
     trainer = Trainer(**trainer_kwargs)
     trainer.train()
     eval_metrics = trainer.evaluate()
-    trainer.save_model(output_dir / "model")
-    tokenizer.save_pretrained(output_dir / "model")
+    model_dir = checkpoint_dir / "model"
+    trainer.save_model(model_dir)
+    tokenizer.save_pretrained(model_dir)
 
     prediction_output = trainer.predict(tokenized["validation"])
     pred_labels = np.argmax(prediction_output.predictions, axis=1)
@@ -290,6 +293,7 @@ def run_task(task: str, args, swanlab: SwanLabLogger) -> Dict[str, float]:
     )
     swanlab.log_output_path(f"project4/{task}/final_metrics_json", output_dir / "final_metrics.json")
     swanlab.log_output_path(f"project4/{task}/report_examples", output_dir / "report_examples.md")
+    swanlab.log_output_path(f"project4/{task}/model_dir", model_dir)
 
     print(f"\n{task.upper()} final metrics:")
     for key, value in metrics.items():
@@ -305,6 +309,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--model-name", default="prajjwal1/bert-mini")
     parser.add_argument("--tokenizer-name", default="bert-base-uncased")
     parser.add_argument("--output-dir", type=Path, default=Path("project4_solution/outputs"))
+    parser.add_argument("--checkpoint-dir", type=Path, default=Path("project4_solution/checkpoints"))
     parser.add_argument("--epochs", type=float, default=2.0)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--eval-batch-size", type=int, default=32)
@@ -345,6 +350,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             "batch_size": args.batch_size,
             "eval_batch_size": args.eval_batch_size,
             "learning_rate": args.learning_rate,
+            "output_dir": str(args.output_dir),
+            "checkpoint_dir": str(args.checkpoint_dir),
             "quick": args.quick,
         },
     )
