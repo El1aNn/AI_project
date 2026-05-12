@@ -17,6 +17,7 @@ import csv
 import inspect
 import json
 import math
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Sequence
@@ -59,6 +60,19 @@ def require_dependencies() -> None:
             + ", ".join(missing)
             + ". Install with `python -m pip install -r requirements.txt`."
         )
+
+
+def env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def configure_hf_offline(args) -> None:
+    if not args.hf_offline:
+        return
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    os.environ["HF_DATASETS_OFFLINE"] = "1"
+    print("Hugging Face offline mode enabled; using local cache only.", flush=True)
 
 
 def build_training_arguments(output_dir: Path, args, train_size: int):
@@ -110,6 +124,7 @@ def compute_metric_values(task: str, predictions: np.ndarray, labels: np.ndarray
 def load_task_dataset(task: str, args):
     from datasets import load_dataset
 
+    print(f"[{task}] Loading GLUE/{TASKS[task]['glue_name']} dataset...", flush=True)
     dataset = load_dataset("glue", TASKS[task]["glue_name"])
     if args.max_train_samples:
         dataset["train"] = dataset["train"].select(range(min(args.max_train_samples, len(dataset["train"]))))
@@ -232,12 +247,19 @@ def run_task(task: str, args, swanlab: SwanLabLogger) -> Dict[str, float]:
     output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     dataset = load_task_dataset(task, args)
-    tokenizer = BertTokenizerFast.from_pretrained(args.tokenizer_name)
+    print(f"[{task}] Loading tokenizer: {args.tokenizer_name}", flush=True)
+    tokenizer = BertTokenizerFast.from_pretrained(
+        args.tokenizer_name,
+        local_files_only=args.hf_offline,
+    )
+    print(f"[{task}] Tokenizing dataset...", flush=True)
     tokenized = tokenize_dataset(task, dataset, tokenizer)
+    print(f"[{task}] Loading model: {args.model_name}", flush=True)
     model = BertForSequenceClassification.from_pretrained(
         args.model_name,
         num_labels=2,
         return_dict=True,
+        local_files_only=args.hf_offline,
     )
 
     def compute_metrics(eval_pred):
@@ -264,9 +286,12 @@ def run_task(task: str, args, swanlab: SwanLabLogger) -> Dict[str, float]:
         trainer_kwargs["tokenizer"] = tokenizer
 
     trainer = Trainer(**trainer_kwargs)
+    print(f"[{task}] Starting training...", flush=True)
     trainer.train()
+    print(f"[{task}] Evaluating validation split...", flush=True)
     eval_metrics = trainer.evaluate()
     model_dir = checkpoint_dir / "model"
+    print(f"[{task}] Saving model checkpoint to {model_dir}", flush=True)
     trainer.save_model(model_dir)
     tokenizer.save_pretrained(model_dir)
 
@@ -320,6 +345,17 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-eval-samples", type=int, default=None)
+    parser.add_argument(
+        "--hf-offline",
+        action="store_true",
+        default=(
+            env_flag("HF_OFFLINE")
+            or env_flag("HF_HUB_OFFLINE")
+            or env_flag("TRANSFORMERS_OFFLINE")
+            or env_flag("HF_DATASETS_OFFLINE")
+        ),
+        help="Use cached Hugging Face datasets/models only; no network probes.",
+    )
     parser.add_argument("--quick", action="store_true", help="Small smoke-test run; not for final report.")
     add_swanlab_args(parser)
     args = parser.parse_args(argv)
@@ -334,6 +370,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv or sys.argv[1:])
+    configure_hf_offline(args)
     require_dependencies()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     tasks = ["sst2", "mrpc"] if args.task == "all" else [args.task]
@@ -352,6 +389,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "learning_rate": args.learning_rate,
             "output_dir": str(args.output_dir),
             "checkpoint_dir": str(args.checkpoint_dir),
+            "hf_offline": args.hf_offline,
             "quick": args.quick,
         },
     )

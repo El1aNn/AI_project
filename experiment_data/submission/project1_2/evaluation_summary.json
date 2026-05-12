@@ -1,0 +1,32 @@
+{
+  "cbow": {
+    "knn": {
+      "available_queries": 46,
+      "mean_top10_cosine": 0.5941849369069804
+    },
+    "simlex999": {
+      "covered_pairs": 390,
+      "spearman": 0.19501786707059576
+    },
+    "analogy": {
+      "covered_questions": 4226,
+      "correct": 142,
+      "accuracy": 0.03360151443445338
+    }
+  },
+  "skipgram": {
+    "knn": {
+      "available_queries": 46,
+      "mean_top10_cosine": 0.5263799772314404
+    },
+    "simlex999": {
+      "covered_pairs": 390,
+      "spearman": 0.09506821486831245
+    },
+    "analogy": {
+      "covered_questions": 4226,
+      "correct": 5,
+      "accuracy": 0.001183151916706105
+    }
+  }
+}

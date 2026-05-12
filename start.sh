@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 export NLTK_DATA="$ROOT_DIR/.nltk_data${NLTK_DATA:+:$NLTK_DATA}"
+export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 
 if [[ -z "${PYTHON_BIN:-}" ]]; then
   if command -v python3 >/dev/null 2>&1; then
@@ -29,6 +30,37 @@ resolve_path() {
 EXPERIMENT_DATA_DIR="$(resolve_path "${3:-${EXPERIMENT_DATA_DIR:-experiment_data/submission}}")"
 CHECKPOINT_DIR="$(resolve_path "${4:-${CHECKPOINT_DIR:-checkpoints/submission}}")"
 
+hf_offline_enabled() {
+  case "${HF_OFFLINE:-0}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+  esac
+  case "${HF_HUB_OFFLINE:-0}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+  esac
+  case "${TRANSFORMERS_OFFLINE:-0}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+  esac
+  case "${HF_DATASETS_OFFLINE:-0}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+  esac
+  return 1
+}
+
+enable_hf_offline() {
+  export HF_OFFLINE=1
+  export HF_HUB_OFFLINE=1
+  export TRANSFORMERS_OFFLINE=1
+  export HF_DATASETS_OFFLINE=1
+  export SWANLAB_MODE="${SWANLAB_MODE:-disabled}"
+}
+
+build_hf_args() {
+  HF_ARGS=()
+  if hf_offline_enabled; then
+    HF_ARGS+=(--hf-offline)
+  fi
+}
+
 print_usage() {
   cat <<'EOF'
 Usage:
@@ -42,6 +74,7 @@ Usage:
   bash start.sh project3 [STUDENT_ID]
   bash start.sh project4
   bash start.sh submission [STUDENT_ID] [EXPERIMENT_DATA_DIR] [CHECKPOINT_DIR]
+  bash start.sh submission-offline [STUDENT_ID] [EXPERIMENT_DATA_DIR] [CHECKPOINT_DIR]
   bash start.sh swanlab-results [PROJECT] [LIMIT]
   bash start.sh analyze [EXPERIMENT_DATA_DIR]
   bash start.sh all [STUDENT_ID]
@@ -54,6 +87,7 @@ Environment variables:
                          Final CSV/JSON/report-example outputs for submission
   CHECKPOINT_DIR=./checkpoints/submission
                          Model checkpoints, kept separate from experiment data
+  HF_OFFLINE=1           Use Hugging Face local cache only and skip network probes
   NLTK_TIMEOUT_SECONDS=120  Timeout for NLTK Reuters download
   SWANLAB=1              Enable SwanLab metric upload. SWANLAB_API_KEY also enables it automatically.
   SWANLAB_PROJECT=AI_project
@@ -73,6 +107,8 @@ Notes:
   - all runs the final settings and may take a long time.
   - submission runs final settings and writes outputs under EXPERIMENT_DATA_DIR,
     with checkpoints under CHECKPOINT_DIR.
+  - submission-offline is the same final run, but forces Hugging Face/SwanLab
+    offline mode. Use it only when datasets/models are already cached.
 EOF
 }
 
@@ -190,9 +226,10 @@ PY
 
 run_quick() {
   build_swanlab_args
+  build_hf_args
   "$PYTHON_BIN" project1_2_solution/word2vec_project.py --quick --student-id "$STUDENT_ID" "${SWANLAB_ARGS[@]}"
   "$PYTHON_BIN" project3_solution/run_project3_ab.py --quick --student-id "$STUDENT_ID" "${SWANLAB_ARGS[@]}"
-  "$PYTHON_BIN" project4_solution/run_bert_tasks.py --task mrpc --quick "${SWANLAB_ARGS[@]}"
+  "$PYTHON_BIN" project4_solution/run_bert_tasks.py --task mrpc --quick "${HF_ARGS[@]}" "${SWANLAB_ARGS[@]}"
 }
 
 run_project1() {
@@ -216,14 +253,19 @@ run_project3() {
 
 run_project4() {
   build_swanlab_args
-  "$PYTHON_BIN" project4_solution/run_bert_tasks.py --task all --epochs 2 "${SWANLAB_ARGS[@]}"
+  build_hf_args
+  "$PYTHON_BIN" project4_solution/run_bert_tasks.py --task all --epochs 2 "${HF_ARGS[@]}" "${SWANLAB_ARGS[@]}"
 }
 
 run_submission() {
   build_swanlab_args
+  build_hf_args
   mkdir -p "$EXPERIMENT_DATA_DIR" "$CHECKPOINT_DIR"
   echo "Submission experiment data dir: $EXPERIMENT_DATA_DIR"
   echo "Submission checkpoint dir:     $CHECKPOINT_DIR"
+  if hf_offline_enabled; then
+    echo "Hugging Face offline mode:     enabled"
+  fi
 
   "$PYTHON_BIN" project1_2_solution/word2vec_project.py \
     --student-id "$STUDENT_ID" \
@@ -247,6 +289,7 @@ run_submission() {
     --epochs 2 \
     --output-dir "$EXPERIMENT_DATA_DIR/project4" \
     --checkpoint-dir "$CHECKPOINT_DIR/project4" \
+    "${HF_ARGS[@]}" \
     "${SWANLAB_ARGS[@]}"
 }
 
@@ -301,6 +344,11 @@ case "$COMMAND" in
     run_project4
     ;;
   submission)
+    check_env
+    run_submission
+    ;;
+  submission-offline)
+    enable_hf_offline
     check_env
     run_submission
     ;;

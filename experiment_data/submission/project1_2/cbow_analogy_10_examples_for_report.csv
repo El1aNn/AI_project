@@ -1,0 +1,11 @@
+model,category,word_a,word_b,word_c,expected,prediction,cosine,covered,correct
+cbow,gram7-past-tense,writing,wrote,implementing,implemented,knew,0.554453,1,0
+cbow,gram2-opposite,competitive,uncompetitive,known,unknown,alternatives,0.542897,1,0
+cbow,gram6-nationality-adjective,brazil,brazilian,netherlands,dutch,jetty,0.567841,1,0
+cbow,gram7-past-tense,increasing,increased,hitting,hit,dropped,0.505490,1,0
+cbow,gram7-past-tense,seeing,saw,slowing,slowed,slows,0.626601,1,0
+cbow,gram8-plural,computer,computers,machine,machines,please,0.498145,1,0
+cbow,gram5-present-participle,fly,flying,implement,implementing,passed,0.496635,1,0
+cbow,gram6-nationality-adjective,spain,spanish,netherlands,dutch,notably,0.587675,1,0
+cbow,gram5-present-participle,increase,increasing,go,going,going,0.564832,1,1
+cbow,gram6-nationality-adjective,israel,israeli,portugal,portuguese,supplementary,0.473701,1,0

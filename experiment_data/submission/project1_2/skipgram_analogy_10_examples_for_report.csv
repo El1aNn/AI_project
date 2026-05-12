@@ -1,0 +1,11 @@
+model,category,word_a,word_b,word_c,expected,prediction,cosine,covered,correct
+skipgram,gram7-past-tense,writing,wrote,implementing,implemented,advocated,0.524962,1,0
+skipgram,gram2-opposite,competitive,uncompetitive,known,unknown,bowling,0.537996,1,0
+skipgram,gram6-nationality-adjective,brazil,brazilian,netherlands,dutch,housewives,0.504024,1,0
+skipgram,gram7-past-tense,increasing,increased,hitting,hit,860,0.473125,1,0
+skipgram,gram7-past-tense,seeing,saw,slowing,slowed,hoogovens,0.464027,1,0
+skipgram,gram8-plural,computer,computers,machine,machines,barbara,0.535603,1,0
+skipgram,gram5-present-participle,fly,flying,implement,implementing,connected,0.510469,1,0
+skipgram,gram6-nationality-adjective,spain,spanish,netherlands,dutch,melbourne,0.507078,1,0
+skipgram,gram5-present-participle,increase,increasing,go,going,chinese,0.483057,1,0
+skipgram,gram6-nationality-adjective,israel,israeli,portugal,portuguese,uae,0.454386,1,0

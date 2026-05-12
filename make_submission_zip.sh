@@ -15,6 +15,7 @@ INCLUDES=(
   ENVIRONMENT.md
   MISSING_ITEMS.md
   REPORT_TEMPLATE.md
+  reports
   requirements.txt
   start.sh
   make_submission_zip.sh

@@ -18,7 +18,9 @@ project1_2_solution/outputs/
 project3_solution/outputs/
 project3_solution/THUCNews_word/
 project4_solution/outputs/
-experiment_data/
+experiment_data/*
+!experiment_data/submission/
+!experiment_data/submission/**
 
 # Large model/checkpoint artifacts
 checkpoints/

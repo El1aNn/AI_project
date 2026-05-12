@@ -79,6 +79,13 @@ one directory, while model checkpoints are saved under a separate directory:
 bash start.sh submission YOUR_STUDENT_ID ./experiment_data/submission ./checkpoints/submission
 ```
 
+If the machine cannot reach Hugging Face but already has GLUE and BERT cached,
+use the offline version to skip slow network retries:
+
+```bash
+bash start.sh submission-offline YOUR_STUDENT_ID ./experiment_data/submission ./checkpoints/submission
+```
+
 You can also set the paths with environment variables:
 
 ```bash
